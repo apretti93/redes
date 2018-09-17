@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
         error(-2, "Fail to create socket");
     }
 
-    struct socketAddress_in6 serverAddress; 
+    struct sockaddr_in6 serverAddress; 
 
     memset(&serverAddress, 0, sizeof(serverAddress)); 
     serverAddress.sin6_family = AF_INET6;
@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
 
     serverAddress.sin6_port = htons(serverPort); 
 
-    if (connect(uSocket, (struct socketAddress *) &serverAddress, sizeof(serverAddress)) < 0){
+    if (connect(uSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0){
         error(-6, "Connection Error");
     }
 
