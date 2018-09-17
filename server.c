@@ -108,14 +108,14 @@ int main(int argc, char *argv[])  {
         error(-2, "Fail to create socket");
     }
 
-    struct socketAddress_in6 serverAddress;
+    struct sockaddr_in6 serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
 
     serverAddress.sin6_family = AF_INET6;
     inet_pton(AF_INET6, in6addr_loopback.s6_addr, &(serverAddress.sin6_addr.s6_addr));
     serverAddress.sin6_port = htons(portServer);
 
-    if (bind(servSock, (struct socketAddress*) &serverAddress, sizeof(serverAddress)) < 0){
+    if (bind(servSock, (struct sockaddr*) &serverAddress, sizeof(serverAddress)) < 0){
         error(-3, "Bind error");
     }
 
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])  {
         struct sockaddr_in6 clientAddress;
         socklen_t clientAddressLen = sizeof(clientAddress);
 
-        int clientSocket = accept(servSock, (struct socketAddress *) &clientAddress, &clientAddressLen);
+        int clientSocket = accept(servSock, (struct sockaddr *) &clientAddress, &clientAddressLen);
         if (clientSocket >= 0){
             printf("Accept() - Sucess!\n");
         }else{
