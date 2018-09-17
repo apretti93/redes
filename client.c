@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
         error(-2, "Fail to create socket");
     }
 
-    struct sockaddr_in6 serverAddress; 
+    struct socketAddress_in6 serverAddress; 
 
     memset(&serverAddress, 0, sizeof(serverAddress)); 
     serverAddress.sin6_family = AF_INET6;
