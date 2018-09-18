@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,54 +12,53 @@
 #include <arpa/inet.h>
 
 
-static const int maxConnections = 5; 
-int sizeBuffer;
-char * uDirectory;
+int sizeBuff;
+char * pathDir;
+static const int maxRequests = 5; 
 
-
-void error(int errorCode, const char* responseMessage)  {
-    printf("Error Code: %d - Response Message: %s\n", errorCode, responseMessage);
+void error(const char* errMsg)  {
+    printf("Error: %s\n", errMsg);
     exit(1);
 }
 
 void get(int clientSocket, const char *fileName) {
-    int uFile;
+    int arq;
     ssize_t readBytes;
-    char * uBuffer = (char *) malloc (sizeof(char) * sizeBuffer);
-    char *filePath = (char *) malloc (sizeof(char) * sizeBuffer);
-    strcpy(filePath, uDirectory);
+    char * buffer = (char *) malloc (sizeof(char) * sizeBuff);
+    char *filePath = (char *) malloc (sizeof(char) * sizeBuff);
+    strcpy(filePath, pathDir);
     strcat(filePath, fileName);
 
-    uFile = open(filePath, O_RDONLY);
-    if (uFile < 0 && uFile > -2) {
-        error(-8, "File not found");
+    arq = open(filePath, O_RDONLY);
+    if (arq < 0 && arq> -2) { // ou seja, não achou o arquivo para leitura
+        error("File not found");
     }
 
-    readBytes = read(uFile, uBuffer, sizeBuffer);
+    readBytes = read(arq, buffer, sizeBuff);
     while (readBytes > 0) {
-        if (write(clientSocket, uBuffer, sizeBuffer) == -1) {
-            error(-7, "Fail to connect client-server");
+        if (write(clientSocket, buffer, sizeBuff) == -1) { 
+            error( "Fail in client/server link");
         }
 
-        readBytes = read(uFile, uBuffer, sizeBuffer);
+        readBytes = read(arq, buffer, sizeBuff);
     }
 
-    if (readBytes < 0 && readBytes > -2) {
-        error(-12, "Fail to R/W");
+    if (readBytes< 0 && readBytes> -2) {
+        error("Error file R/W");
     }
 
-    close(uFile);
+    close(arq);
 }
 
 void list(int clientSocket) {
     struct dirent *file;
-    char * uBuffer = (char *) malloc (sizeof(char) * sizeBuffer);
-    DIR *dir = opendir(uDirectory);
+    char * buffer = (char *) malloc (sizeof(char) * sizeBuff);
+    DIR *dir = opendir(pathDir);
     if (dir) {
         while ((file = readdir(dir)) != NULL) {
             if (file->d_type == DT_REG) {
-                sprintf(uBuffer, "%s", file->d_name);
-                send(clientSocket, uBuffer, sizeBuffer, 0);
+                sprintf(buffer, "%s", file->d_name);
+                send(clientSocket, buffer, sizeBuff, 0);
             }
         }
         closedir(dir);
@@ -67,25 +67,26 @@ void list(int clientSocket) {
 
 void* handleConnection(void* arg) {
     int clientSocket = (intptr_t) arg;
-    char* uBuffer = (char *) malloc(sizeof(char) *sizeBuffer);
-    char* op = (char*) malloc(sizeof(char) * sizeBuffer);
+    char* buffer = (char *) malloc(sizeof(char) *sizeBuff);
+    char* op = (char*) malloc(sizeof(char) * sizeBuff);
+    ssize_t numBytesRcvd = recv(clientSocket, buffer, sizeBuff, 0);
 
-    ssize_t numBytesRcvd = recv(clientSocket, uBuffer, sizeBuffer, 0);
-
-    if (numBytesRcvd < 0) {
-        error(-7, "Fail to connect client-server");
+    if (numBytesRcvd < -1 || numBytesRcvd == 0) {
+        error( "Error linking");
     }
-    sscanf(uBuffer, "%s", op);
+    sscanf(buffer, "%s", op);
 
-    uBuffer = uBuffer + strlen(op); 
-    if (strcmp(op, "list") == 0) {
-        list(clientSocket);
-    } else if (strcmp(op, "get") == 0) {
-        char *fileName = (char*) malloc(sizeof(char) * sizeBuffer);
-        sscanf(uBuffer, "%s", fileName);
+    buffer = buffer + strlen(op);
+   	if (strcmp(op, "get") == 0) {
+        char *fileName = (char*) malloc(sizeof(char) * sizeBuff);
+        sscanf(buffer, "%s", fileName);
         get(clientSocket, fileName);
-    } else {
-        error(-10, "Client command not found");
+    } 
+	else if (strcmp(op, "list") == 0) {
+        list(clientSocket);
+	}
+	else {
+        error( "Client command not exists");
     }
 
     close(clientSocket);
@@ -94,54 +95,53 @@ void* handleConnection(void* arg) {
 
 int main(int argc, char *argv[])  {
     if (argc != 4 ) {
-        error(-1, "Erros nos argumentos de entrada");
+        error( "Argc is not 4 - Error");
     }
 
-    in_port_t portServer = atoi(argv[1]); // First arg: local port
-    sizeBuffer = atoi(argv[2]);
-    uDirectory = argv[3];
-
+    in_port_t portServer = atoi(argv[1]);
+    sizeBuff = atoi(argv[2]);
+    pathDir = argv[3];
     pthread_t threadClient;
 
     int servSock;
     if ((servSock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP)) < 0){
-        error(-2, "Fail to create socket");
+        error("Error to create socket");
     }
 
-    struct sockaddr_in6 serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
+    struct sockaddr_in6 servAddr;
+    memset(&servAddr, 0, sizeof(servAddr));
 
-    serverAddress.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, in6addr_loopback.s6_addr, &(serverAddress.sin6_addr.s6_addr));
-    serverAddress.sin6_port = htons(portServer);
+    servAddr.sin6_family = AF_INET6;
+    inet_pton(AF_INET6, in6addr_loopback.s6_addr, &(servAddr.sin6_addr.s6_addr));
+    servAddr.sin6_port = htons(portServer);
 
-    if (bind(servSock, (struct sockaddr*) &serverAddress, sizeof(serverAddress)) < 0){
-        error(-3, "Bind error");
+    if (bind(servSock, (struct sockaddr*) &servAddr, sizeof(servAddr)) < 0){
+        error( "Bind error");
     }
 
-    if (listen(servSock, maxConnections) < 0){
-        error(-4, "Listen error");
+    if (listen(servSock, maxRequests) < 0){
+        error( "Listen error");
     }else{
-        printf("Server started. \nWaiting conections...\n");
+        printf("Initializing server. \nWaiting connections..\n");
     }
 
     while (1){
-        struct sockaddr_in6 clientAddress;
-        socklen_t clientAddressLen = sizeof(clientAddress);
+        struct sockaddr_in6 clntAddr;
+        socklen_t clntAddrLen = sizeof(clntAddr);
 
-        int clientSocket = accept(servSock, (struct sockaddr *) &clientAddress, &clientAddressLen);
-        if (clientSocket >= 0){
-            printf("Accept() - Sucess!\n");
+        int clientSocket = accept(servSock, (struct sockaddr *) &clntAddr, &clntAddrLen);
+        if (clientSocket < 0){
+            error("Erro de accept");
         }else{
-            error(-5, "Accept error");
+            printf("Accept() - Conexão recebida e aceita!\n");
         }
 
         char clntName[INET6_ADDRSTRLEN];
 
-        if (inet_ntop(AF_INET6, &clientAddress.sin6_addr.s6_addr, clntName, sizeof(clntName)) != NULL)
-            printf("IP/Port: %s:%d\n", clntName, ntohs(clientAddress.sin6_port));
+        if (inet_ntop(AF_INET6, &clntAddr.sin6_addr.s6_addr, clntName, sizeof(clntName)) != NULL)
+            printf("IP/Port: %s:%d\n", clntName, ntohs(clntAddr.sin6_port));
         else
-            error(-11, "Client Address not found");
+            error( "Endereco do cliente nao encontrado");
 
         pthread_create(&threadClient, NULL, handleConnection, (void *) (intptr_t) clientSocket);
     }
